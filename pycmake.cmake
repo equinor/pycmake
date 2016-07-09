@@ -38,10 +38,21 @@ macro(python_module_version module)
   set(PY_VERSION_ACCESSOR "__version__")
   set(PY_module_name ${module})
 
-  if(${module} STREQUAL "PyQt4")
+  if(${PY_module_name} STREQUAL "PyQt4")
     set(PY_module_name "PyQt4.Qt")
+  endif()
+  if(${PY_module_name} STREQUAL "PyQt4.Qt")
     set(PY_VERSION_ACCESSOR "PYQT_VERSION_STR")
   endif()
+
+  if(${PY_module_name} STREQUAL "serial")
+    set(PY_VERSION_ACCESSOR "VERSION")
+  endif()
+
+  if(${PY_module_name} STREQUAL "sqlite")
+    set(PY_VERSION_ACCESSOR "version")
+  endif()
+
 
   #  ARGUMENTS: module accessor
   set (extra_macro_args ${ARGN})

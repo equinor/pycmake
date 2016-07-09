@@ -2,13 +2,19 @@
 
 A short list of issues and requests for future work.
 
-## Supporting more non-conformant modules
+## More robust support of non-conformant modules
 
-What to do with libraries such as *PySerial*, *libxslt*, *libxml2*, *inspect*?
-We could consider hardcoding (and maintaining) a map from libraries to version
-accessor.  E.g., `PyQt4.Qt`&nbsp;&rarr;&nbsp;`"PYQT_VERSION_STR"`, 
-`SQLite2`&nbsp;&rarr;&nbsp;`"version"`, etc.
+What to do with libraries such as *PySerial*, *PyQt*, *SQLite*, etc.  Today we
+have hardcoded in (some) support for these.  We could consider adding (and
+maintaining) a map from libraries to version accessor.  E.g.,
 
+ * `PyQt4.Qt`&nbsp;&rarr;&nbsp;`"PYQT_VERSION_STR"`,
+ * `sqlite`&nbsp;&rarr;&nbsp;`"version"`,
+ * `serial`&nbsp;&rarr;&nbsp;`"VERSION"`, etc.
+
+
+Other libraries again do not expose version strings at all, like *libxslt*,
+*libxml2*, and *inspect*.  Here we cannot and will not do anything.
 
 
 ## Improved output on keyword EXACT
