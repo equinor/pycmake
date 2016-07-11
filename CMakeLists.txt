@@ -7,7 +7,7 @@ find_package( PythonInterp 2.6 REQUIRED )
 
 # Loading pycmake macros
 
-include(pycmake.cmake)
+include( FindPythonModule.cmake )
 
 
 # Using the above features
@@ -28,7 +28,7 @@ python_module( inspect    OPTIONAL                                   )
 python_module( cwrap QUIET )
 python_module( cwrap QUIET 1.0)
 python_module( no_such_module QUIET )
-
+python_module( scipy QUIET 0.16.1 )
 
 if (DEFINED PY_inspect)
   # Here we can do stuff depending on having *inspect*
