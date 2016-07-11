@@ -122,19 +122,39 @@ macro(python_module package)
   if(NOT DEFINED PY_${package})
     if(${package_req} STREQUAL "OPTIONAL")
       message(WARNING "Could not find Python module " ${package})
+    elseif(${package_req} STREQUAL "QUIET")
+      message(STATUS "Could not find Python module " ${package})
     else()
       message(SEND_ERROR "Could not find Python module " ${package})
     endif()
+
   else()
+    # package found in system
+
     if (${version_req} STREQUAL "EXACT" AND NOT ${PY_${package}} VERSION_EQUAL ${module_version})
-      message(SEND_ERROR "Python module ${package} not exact.  "
-        "Wanted EXACT ${module_version}, found ${PY_${package}}")
+      if (${package_req} STREQUAL "QUIET")
+        message(STATUS "Python module ${package} not exact.  "
+          "Wanted EXACT ${module_version}, found ${PY_${package}}")
+      else()
+        message(SEND_ERROR "Python module ${package} not exact.  "
+          "Wanted EXACT ${module_version}, found ${PY_${package}}")
+      endif()
     elseif (${version_req} STREQUAL "OPTIONAL" AND ${PY_${package}} VERSION_LESS ${module_version})
-      message(WARNING "Python module ${package} too old.  "
-        "Wanted ${module_version}, found ${PY_${package}}")
+      if (${package_req} STREQUAL "QUIET")
+        message(WARNING "Python module ${package} too old.  "
+          "Wanted ${module_version}, found ${PY_${package}}")
+      else()
+        message(WARNING "Python module ${package} too old.  "
+          "Wanted ${module_version}, found ${PY_${package}}")
+      endif()
     elseif (${version_req} STREQUAL "MINIMUM" AND ${PY_${package}} VERSION_LESS ${module_version})
-      message(SEND_ERROR "Python module ${package} too old.  "
-        "Wanted MINIMUM ${module_version}, found ${PY_${package}}")
+      if (${package_req} STREQUAL "QUIET")
+        message(STATUS "Python module ${package} too old.  "
+          "Wanted MINIMUM ${module_version}, found ${PY_${package}}")
+      else()
+        message(SEND_ERROR "Python module ${package} too old.  "
+          "Wanted MINIMUM ${module_version}, found ${PY_${package}}")
+      endif()
     else()
       if(NOT DEFINED accessor)
         message(STATUS "Found ${package}.  "

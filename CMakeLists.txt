@@ -25,6 +25,11 @@ python_module( requests   REQUIRED 2.2.1  EXACT                      )
 python_module( inspect    OPTIONAL                                   )
 #python_module( pandas    REQUIRED 9.9.9  OPTIONAL )                 # will warn but pass
 
+python_module( cwrap QUIET )
+python_module( cwrap QUIET 1.0)
+python_module( no_such_module QUIET )
+
+
 if (DEFINED PY_inspect)
   # Here we can do stuff depending on having *inspect*
   message(STATUS "We have inspect.")
