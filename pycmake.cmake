@@ -114,6 +114,14 @@ macro(python_module package)
     list(GET extra_macro_args 3 accessor)
   endif ()
 
+  # Setting warning/error output level
+  set(PY_MSG_ERR  SEND_ERROR)
+  set(PY_MSG_WARN WARNING)
+  if(${package_req} STREQUAL "QUIET")
+    set(PY_MSG_ERR  STATUS)
+    set(PY_MSG_WARN STATUS)
+  endif()
+
   # We are done expanding the optional arguments
 
   python_module_version(${package} ${accessor})
@@ -121,40 +129,23 @@ macro(python_module package)
   # package not found in system
   if(NOT DEFINED PY_${package})
     if(${package_req} STREQUAL "OPTIONAL")
-      message(WARNING "Could not find Python module " ${package})
-    elseif(${package_req} STREQUAL "QUIET")
-      message(STATUS "Could not find Python module " ${package})
+      message(${PY_MSG_WARN} "Could not find Python module " ${package})
     else()
-      message(SEND_ERROR "Could not find Python module " ${package})
+      message(${PY_MSG_ERR} "Could not find Python module " ${package})
     endif()
 
   else()
     # package found in system
 
     if (${version_req} STREQUAL "EXACT" AND NOT ${PY_${package}} VERSION_EQUAL ${module_version})
-      if (${package_req} STREQUAL "QUIET")
-        message(STATUS "Python module ${package} not exact.  "
-          "Wanted EXACT ${module_version}, found ${PY_${package}}")
-      else()
-        message(SEND_ERROR "Python module ${package} not exact.  "
-          "Wanted EXACT ${module_version}, found ${PY_${package}}")
-      endif()
+      message(${PY_MSG_ERR} "Python module ${package} not exact.  "
+        "Wanted EXACT ${module_version}, found ${PY_${package}}")
     elseif (${version_req} STREQUAL "OPTIONAL" AND ${PY_${package}} VERSION_LESS ${module_version})
-      if (${package_req} STREQUAL "QUIET")
-        message(WARNING "Python module ${package} too old.  "
-          "Wanted ${module_version}, found ${PY_${package}}")
-      else()
-        message(WARNING "Python module ${package} too old.  "
-          "Wanted ${module_version}, found ${PY_${package}}")
-      endif()
+      message(${PY_MSG_WARN} "Python module ${package} too old.  "
+        "Wanted ${module_version}, found ${PY_${package}}")
     elseif (${version_req} STREQUAL "MINIMUM" AND ${PY_${package}} VERSION_LESS ${module_version})
-      if (${package_req} STREQUAL "QUIET")
-        message(STATUS "Python module ${package} too old.  "
-          "Wanted MINIMUM ${module_version}, found ${PY_${package}}")
-      else()
-        message(SEND_ERROR "Python module ${package} too old.  "
-          "Wanted MINIMUM ${module_version}, found ${PY_${package}}")
-      endif()
+      message(${PY_MSG_ERR} "Python module ${package} too old.  "
+        "Wanted MINIMUM ${module_version}, found ${PY_${package}}")
     else()
       if(NOT DEFINED accessor)
         message(STATUS "Found ${package}.  "
@@ -172,4 +163,6 @@ macro(python_module package)
   unset(version_req)
   unset(accessor)
   unset(extra_macro_args)
+  set(PY_MSG_ERR)
+  set(PY_MSG_WARN)
 endmacro()
