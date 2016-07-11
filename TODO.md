@@ -36,15 +36,6 @@ Suppose *SQLite2* later added a field `__version__` and deprecated the use of
 `version` (I'm a dreamer).  How to make it possible to try any of two accessors?
 
 
-## Add keyword SILENT
-
-For `python_module( cwrap SILENT )`, we expect the variable `PY_cwrap` to be
-populated if `cwrap` exists, but want no error or warning if it does not.
-
-The use case is that if `cwrap` does not exist, we ship our own version of it,
-and no warning or error is necessary.
-
-
 ## Using *pkg_resources* for improved version support (not going to happen)
 
 if `import my_module;print(my_module.__version__)` fails try
