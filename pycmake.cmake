@@ -143,7 +143,6 @@ macro(python_module package)
         message(STATUS "Found ${package}.  "
                 "${PY_${package}} >= ${module_version} (" ${accessor} ")")
       endif()
-      set(PY_${package} ${module_version})
     endif()
   endif()
 
