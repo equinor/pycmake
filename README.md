@@ -100,8 +100,8 @@ reveals fields
 ## Technicalities
 
 This repo contains two files of interest.  The `CMakeLists.txt` loads the more
-interesting file `pycmake.cmake`, and then provides some use cases.
-`pycmake.cmake` contains two macros, one main and one auxilliary:
+interesting file `FindPythonModule.cmake`, and then provides some use cases.
+`FindPythonModule.cmake` contains two macros, one main and one auxilliary:
 
 * `macro( python_module_version module )`
 * `macro( python_module module version )` &mdash; this is the interface
