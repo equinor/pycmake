@@ -1,7 +1,7 @@
 # Setting up
 
 cmake_minimum_required( VERSION 2.0 )
-project( TEST_PROJECT )
+project( pycmake )
 
 add_subdirectory( cmake )
 
