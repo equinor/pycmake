@@ -1,7 +1,7 @@
 # Test the module - assumes some packages are installed.
 
 find_package( PythonInterp 2.6 REQUIRED )
-include( ${CMAKE_SOURCE_DIR}/cmake/Modules/FindPythonModule.cmake )
+include( ${CMAKE_SOURCE_DIR}/FindPythonModule.cmake )
 
 python_module( ctypes )
 python_module( numpy  REQUIRED 1.8 )
