@@ -1,10 +1,10 @@
-# Setting up
-
 cmake_minimum_required( VERSION 2.0 )
 project( pycmake )
 
-add_subdirectory( cmake )
-
-if(ENABLE_TESTING)
+if(PYCMAKE_ENABLE_TESTING)
     add_subdirectory(test)
 endif()
+
+install(FILES FindPythonModule.cmake
+              PythonPackage.cmake
+        DESTINATION share/cmake/Modules)
