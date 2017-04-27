@@ -207,7 +207,7 @@ function(add_python_package pkg NAME)
     set(nary  TARGETS SOURCES DEPEND_DIRS)
     cmake_parse_arguments(PP "${options}" "${unary}" "${nary}" "${ARGN}")
 
-    set(installpath ${CMAKE_INSTALL_PREFIX}/${PYTHON_INSTALL_PREFIX}/${NAME})
+    set(installpath ${CMAKE_INSTALL_PREFIX}/${PYTHON_INSTALL_PREFIX})
 
     if (PP_PATH)
         # obey an optional path to install into - but prefer the reasonable
@@ -320,13 +320,8 @@ function(add_python_package pkg NAME)
             "add_python_package called without .py files or C/C++ targets.")
     endif()
 
-    if (PP_SOURCES)
-        install(FILES ${PP_SOURCES} DESTINATION ${installpath})
-    endif()
-
-    if (PP_TARGETS)
-        install(TARGETS ${PP_TARGETS} EXPORT ${pkg} DESTINATION ${installpath})
-    endif()
+    install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${dstpath}
+            DESTINATION ${installpath})
 endfunction()
 
 function(add_setup_py target template)
