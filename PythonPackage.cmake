@@ -178,6 +178,13 @@ function(pycmake_include_target_deps pkg tgt depend_dirs)
         get_target_property(defs   ${dep} COMPILE_DEFINITIONS)
         get_target_property(flgs   ${dep} COMPILE_OPTIONS)
 
+        # prune -NOTFOUND props
+        foreach (var incdir srcs defs flgs)
+            if(NOT ${var})
+                set(${var} "")
+            endif ()
+        endforeach ()
+
         list(APPEND includes ${incdir})
         list(APPEND sources  ${prefix}/${srcs})
         list(APPEND defines  ${defs})
@@ -405,7 +412,9 @@ function(add_setup_py target template)
         list(REMOVE_DUPLICATES _inc)
         list(REMOVE_DUPLICATES _src)
         list(REMOVE_DUPLICATES _def)
-        list(REMOVE_DUPLICATES _opt)
+        # do not remote duplictes for compiler options, because some are
+        # legitemately passed multiple times, e.g. on clang for osx builds
+        # `-arch i386 -arch x86_64`
 
         # then make the list comma-separated (for python)
         string(REGEX REPLACE ";" "," inc "${_inc}")
