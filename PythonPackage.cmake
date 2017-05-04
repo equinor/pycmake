@@ -185,8 +185,13 @@ function(pycmake_include_target_deps pkg tgt depend_dirs)
             endif ()
         endforeach ()
 
+        unset(_srcs)
+        foreach (src ${srcs})
+            list(APPEND _srcs ${prefix}/${src})
+        endforeach ()
+
         list(APPEND includes ${incdir})
-        list(APPEND sources  ${prefix}/${srcs})
+        list(APPEND sources  ${_srcs})
         list(APPEND defines  ${defs})
         list(APPEND flags    ${flags})
     endforeach()
@@ -377,21 +382,26 @@ function(add_setup_py target template)
         # wrap every string in single quotes (because python expects this)
         foreach (item ${inc})
             # project-provided headers must be bundled for sdist
-            pycmake_is_system_path(syspath ${item})
+
             get_filename_component(dstpath include/${item} DIRECTORY)
+            string(REGEX REPLACE "([a-zA-Z]):" "\\1" dstpath "${dstpath}")
+            string(REGEX REPLACE "//*" "/" dstpath "${dstpath}")
+
+            pycmake_is_system_path(syspath ${item})
             if (NOT ${syspath})
                 file(COPY ${item} DESTINATION ${dstpath})
             endif ()
 
             list(APPEND _inc "'include/${item}'")
         endforeach ()
-        foreach (item ${src})
 
+        foreach (item ${src})
             # setup.py is pretty grumpy and wants source files relative itself
             # AND not upwards, so we must copy our entire source tree into the
             # build dir
-            configure_file(${item} ${CMAKE_CURRENT_BINARY_DIR}/${item} COPYONLY)
-            list(APPEND _src "'./${item}'")
+            string(REGEX REPLACE "[a-zA-Z]:" "" dstitem "${item}")
+            configure_file(${item} ${CMAKE_CURRENT_BINARY_DIR}/${dstitem} COPYONLY)
+            list(APPEND _src "'./${dstitem}'")
         endforeach ()
 
         foreach (item ${opt})
