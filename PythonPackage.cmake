@@ -122,21 +122,27 @@ endfunction ()
 
 # internal. Traverse the tree of dependencies (linked targets) that are actual
 # cmake targets and add to a list
-function(pycmake_target_dependencies dependencies target)
+function(pycmake_target_dependencies dependencies links target)
     get_target_property(deps ${target} LINK_LIBRARIES)
 
-    list(APPEND result ${target})
+    set(_links "")
+    list(APPEND _dependencies ${target})
     foreach (dep ${deps})
         if (TARGET ${dep})
-            pycmake_target_dependencies(linked ${dep})
-            foreach (link ${linked})
-                list(APPEND result ${link})
+            pycmake_target_dependencies(trans_tgt trans_link ${dep})
+            foreach (link ${trans_tgt})
+                list(APPEND _dependencies ${link})
             endforeach ()
+            pycmake_list_concat(_links ${_links} ${trans_link})
+        else ()
+            list(APPEND _links ${dep})
         endif ()
     endforeach ()
 
-    list(REMOVE_DUPLICATES result)
-    set(${dependencies} ${result} PARENT_SCOPE)
+    list(REMOVE_DUPLICATES _dependencies)
+    list(REMOVE_DUPLICATES _links)
+    set(${dependencies} "${_dependencies}" PARENT_SCOPE)
+    set(${links} "${_links}" PARENT_SCOPE)
 endfunction ()
 
 # internal. Traverse the set of dependencies (linked targets) to some parent
@@ -153,11 +159,12 @@ endfunction ()
 # PYCMAKE_<ext>_SOURCES
 # PYCMAKE_<ext>_COMPILE_DEFINITIONS
 # PYCMAKE_<ext>_COMPILE_OPTIONS
+# PYCMAKE_<ext>_LINK_LIBRARIES
 #
 # All properties are lists, and the content correspond to the non-namespaced
 # properties (includes, sources etc.)
 function(pycmake_include_target_deps pkg tgt depend_dirs)
-    pycmake_target_dependencies(deps ${tgt})
+    pycmake_target_dependencies(deps links ${tgt})
     foreach (dep ${deps})
         # If sources files were registered with absolute path (prefix'd with
         # ${CMAKE_CURRENT_SOURCE_DIR}) we can just use this absolute path and
@@ -209,6 +216,7 @@ function(pycmake_include_target_deps pkg tgt depend_dirs)
                             PYCMAKE_EXTENSIONS "${extensions}"
                             PYCMAKE_${tgt}_INCLUDE_DIRECTORIES "${includes}"
                             PYCMAKE_${tgt}_SOURCES "${sources}"
+                            PYCMAKE_${tgt}_LINK_LIBRARIES "${links}"
                             PYCMAKE_${tgt}_COMPILE_DEFINITIONS "${defines}"
                             PYCMAKE_${tgt}_COMPILE_OPTIONS "${flags}")
 endfunction()
@@ -369,6 +377,7 @@ function(add_setup_py target template)
 
         get_target_property(inc ${target} PYCMAKE_${ext}_INCLUDE_DIRECTORIES)
         get_target_property(src ${target} PYCMAKE_${ext}_SOURCES)
+        get_target_property(lnk ${target} PYCMAKE_${ext}_LINK_LIBRARIES)
         get_target_property(def ${target} PYCMAKE_${ext}_COMPILE_DEFINITIONS)
         get_target_property(opt ${target} PYCMAKE_${ext}_COMPILE_OPTIONS)
 
@@ -409,6 +418,11 @@ function(add_setup_py target template)
             list(APPEND _opt "'${item}'")
         endforeach ()
 
+        set(_lnk "")
+        foreach (item ${lnk})
+            list(APPEND _lnk "'${item}'")
+        endforeach ()
+
         # defines are a bit more work, because setup.py expects them as tuples
         foreach (item ${def})
             string(FIND ${item} "=" pos)
@@ -423,6 +437,7 @@ function(add_setup_py target template)
         list(REMOVE_DUPLICATES _inc)
         list(REMOVE_DUPLICATES _src)
         list(REMOVE_DUPLICATES _def)
+        list(REMOVE_DUPLICATES _lnk)
         # do not remote duplictes for compiler options, because some are
         # legitemately passed multiple times, e.g. on clang for osx builds
         # `-arch i386 -arch x86_64`
@@ -432,12 +447,14 @@ function(add_setup_py target template)
         string(REGEX REPLACE ";" "," src "${_src}")
         string(REGEX REPLACE ";" "," def "${_def}")
         string(REGEX REPLACE ";" "," opt "${_opt}")
+        string(REGEX REPLACE ";" "," lnk "${_lnk}")
 
         # TODO: be able to set other name than ext
         list(APPEND setup_extensions "Extension('${PYCMAKE_PACKAGE_NAME}.${ext}',
                                                 sources=[${src}],
                                                 include_dirs=[${inc}],
                                                 define_macros=[${def}],
+                                                libraries=[${lnk}],
                                                 extra_compile_args=[${opt}])")
 
     endforeach()
