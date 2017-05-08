@@ -165,6 +165,11 @@ endfunction ()
 # properties (includes, sources etc.)
 function(pycmake_include_target_deps pkg tgt depend_dirs)
     pycmake_target_dependencies(deps links ${tgt})
+    set(includes "")
+    set(defines "")
+    set(sources "")
+    set(flags "")
+
     foreach (dep ${deps})
         # If sources files were registered with absolute path (prefix'd with
         # ${CMAKE_CURRENT_SOURCE_DIR}) we can just use this absolute path and
@@ -211,6 +216,11 @@ function(pycmake_include_target_deps pkg tgt depend_dirs)
     string(REGEX REPLACE "\\$<.*>;?" "" sources  "${sources}")
     string(REGEX REPLACE "\\$<.*>;?" "" defines  "${defines}")
     string(REGEX REPLACE "\\$<.*>;?" "" flags    "${flags}")
+
+    # sources (on shared windows build) can contain .def files for exporting
+    # symbols. These are filtered out too, as exporting non-python symbols is
+    # uninteresting from a pip setting.
+    string(REGEX REPLACE "[^;]*[.]def;?" "" sources "${sources}")
 
     set_target_properties(${pkg} PROPERTIES
                             PYCMAKE_EXTENSIONS "${extensions}"
@@ -395,13 +405,13 @@ function(add_setup_py target template)
 
             get_filename_component(dstpath include/${item} DIRECTORY)
             string(REGEX REPLACE "([a-zA-Z]):" "\\1" dstpath "${dstpath}")
-            string(REGEX REPLACE "//*" "/" dstpath "${dstpath}")
 
             pycmake_is_system_path(syspath ${item})
             if (NOT ${syspath})
                 file(COPY ${item} DESTINATION ${dstpath})
             endif ()
 
+            string(REGEX REPLACE "([a-zA-Z]):" "\\1" item "${item}")
             list(APPEND _inc "'include/${item}'")
         endforeach ()
 
