@@ -292,7 +292,7 @@ function(add_python_package pkg NAME)
 
     # targets are compiled as regular C/C++ libraries (via add_library), before
     # we add some python specific stuff for the linker here.
-    if (MSVC)
+    if (WINDOWS)
         # on windows, .pyd is used as extension instead of DLL
         set(SUFFIX ".pyd")
     elseif (APPLE)
@@ -376,8 +376,9 @@ function(add_setup_py target template)
         pycmake_list_concat(def ${dir_def} ${def})
         pycmake_list_concat(opt ${flags} ${dir_opt} ${opt})
 
-        # remove the python include dir (which is obviously unecessary)
+        # remove the python include dir and lib (which is obviously unecessary)
         list(REMOVE_ITEM inc ${PYTHON_INCLUDE_DIRS})
+        list(REMOVE_ITEM lnk ${PYTHON_LIBRARIES})
 
         # wrap every string in single quotes (because python expects this)
         foreach (item ${inc})
