@@ -126,6 +126,12 @@ function(pycmake_target_dependencies dependencies links target)
     get_target_property(deps ${target} LINK_LIBRARIES)
 
     set(_links "")
+
+    # LINK_LIBRARIES could be not-found, in which we make it an empty list
+    if (NOT deps)
+        set(deps "")
+    endif ()
+
     list(APPEND _dependencies ${target})
     foreach (dep ${deps})
         if (TARGET ${dep})
@@ -169,7 +175,7 @@ function(pycmake_include_target_deps pkg tgt depend_dirs)
     set(defines "")
     set(sources "")
     set(flags "")
-    if (NOT ${links})
+    if (NOT links)
         set(links "")
     endif ()
 
