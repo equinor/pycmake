@@ -169,6 +169,9 @@ function(pycmake_include_target_deps pkg tgt depend_dirs)
     set(defines "")
     set(sources "")
     set(flags "")
+    if (NOT ${links})
+        set(links "")
+    endif ()
 
     foreach (dep ${deps})
         # If sources files were registered with absolute path (prefix'd with
