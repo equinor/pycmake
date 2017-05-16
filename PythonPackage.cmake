@@ -13,6 +13,22 @@
 #  for more details
 
 # This module exports the following functions:
+# * python_library(<target> [REQUIRE_LIBS] [EXACT] [VERSION <ver>]
+#   Create a new interface library <target> that works well with
+#   target_link_libraries. If the python interpreter and/or libraries are not
+#   found before this function is called, it will find and configure them for you.
+#
+#   When the REQUIRE_LIBS option is used, this function will fail if the python
+#   libraries cannot be found. Otherwise the libraries are considered optional.
+#
+#   When EXACT is specified and VERSION is not used, this option is ignored.
+#   When exact is used with a version string, this function will fail in case a
+#   different python version than <ver> is found. Python the X.Y and X.Y.Z
+#   formats are supported.
+#
+#   When VERSION <ver> is used (without exact), this specifies the minimum
+#   python version.
+#
 # * add_python_package(<target> <name>
 #                      [APPEND] [VERSION__INIT__]
 #                      [SUBDIR <dir>] [PATH <path>]
@@ -78,9 +94,7 @@
 #       correctly with the given arguments, and which will report as a unit
 #       test failure.
 
-if (NOT PYTHON_EXECUTABLE)
-    include(FindPythonInterp)
-endif ()
+include(CMakeParseArguments)
 
 function(pycmake_to_path_list var path1)
     if("${CMAKE_HOST_SYSTEM}" MATCHES ".*Windows.*")
@@ -95,12 +109,25 @@ function(pycmake_to_path_list var path1)
     set(${var} "${result}" PARENT_SCOPE)
 endfunction()
 
-if (EXISTS "/etc/debian_version")
-    set( PYTHON_PACKAGE_PATH "dist-packages")
-else()
-    set( PYTHON_PACKAGE_PATH "site-packages")
-endif()
-set(PYTHON_INSTALL_PREFIX "lib/python${PYTHON_VERSION_MAJOR}.${PYTHON_VERSION_MINOR}/${PYTHON_PACKAGE_PATH}" CACHE STRING "Subdirectory to install Python modules in")
+function(pycmake_init)
+    if (NOT PYTHON_EXECUTABLE OR NOT PYTHON_VERSION_STRING)
+        find_package(PythonInterp REQUIRED)
+
+        set(PYTHON_VERSION_MAJOR  ${PYTHON_VERSION_MAJOR}  CACHE INTERNAL "")
+        set(PYTHON_VERSION_MINOR  ${PYTHON_VERSION_MINOR}  CACHE INTERNAL "")
+        set(PYTHON_VERSION_STRING ${PYTHON_VERSION_STRING} CACHE INTERNAL "")
+        set(PYTHON_EXECUTABLE     ${PYTHON_EXECUTABLE}     CACHE INTERNAL "")
+    endif ()
+
+    if (EXISTS "/etc/debian_version")
+        set(PYTHON_PACKAGE_PATH "dist-packages")
+    else()
+        set(PYTHON_PACKAGE_PATH "site-packages")
+    endif()
+
+    set(PYTHON_INSTALL_PREFIX "lib/python${pyver}/${PYTHON_PACKAGE_PATH}"
+        CACHE STRING "Subdirectory to install Python modules in")
+endfunction()
 
 function(pycmake_list_concat out)
     foreach (arg ${ARGN})
@@ -123,15 +150,18 @@ endfunction ()
 # internal. Traverse the tree of dependencies (linked targets) that are actual
 # cmake targets and add to a list
 function(pycmake_target_dependencies dependencies links target)
-    get_target_property(deps ${target} LINK_LIBRARIES)
+    get_target_property(deps ${target} INTERFACE_LINK_LIBRARIES)
 
-    set(_links "")
+    if (NOT deps)
+        get_target_property(deps ${target} LINK_LIBRARIES)
+    endif ()
 
     # LINK_LIBRARIES could be not-found, in which we make it an empty list
     if (NOT deps)
         set(deps "")
     endif ()
 
+    set(_links "")
     list(APPEND _dependencies ${target})
     foreach (dep ${deps})
         if (TARGET ${dep})
@@ -194,10 +224,19 @@ function(pycmake_include_target_deps pkg tgt depend_dirs)
             set(prefix ${CMAKE_CURRENT_SOURCE_DIR})
         endif ()
 
-        get_target_property(incdir ${dep} INCLUDE_DIRECTORIES)
-        get_target_property(srcs   ${dep} SOURCES)
-        get_target_property(defs   ${dep} COMPILE_DEFINITIONS)
-        get_target_property(flgs   ${dep} COMPILE_OPTIONS)
+        # If this is an interface library then most of these are probably empty
+        # *and* cmake will crash if we look up any non-INTERFACE_ properties,
+        # so prepend INTERFACE_ on interface targets
+        unset(INTERFACE_)
+        get_target_property(type ${dep} TYPE)
+        if (type STREQUAL INTERFACE_LIBRARY)
+            set(INTERFACE_ INTERFACE_)
+        endif ()
+
+        get_target_property(incdir ${dep} ${INTERFACE_}INCLUDE_DIRECTORIES)
+        get_target_property(srcs   ${dep} ${INTERFACE_}SOURCES)
+        get_target_property(defs   ${dep} ${INTERFACE_}COMPILE_DEFINITIONS)
+        get_target_property(flgs   ${dep} ${INTERFACE_}COMPILE_OPTIONS)
 
         # prune -NOTFOUND props
         foreach (var incdir srcs defs flgs)
@@ -240,12 +279,70 @@ function(pycmake_include_target_deps pkg tgt depend_dirs)
                             PYCMAKE_${tgt}_COMPILE_OPTIONS "${flags}")
 endfunction()
 
+function(python_library target)
+    pycmake_init()
+
+    set(options EXACT REQUIRE_LIBS)
+    set(unary VERSION)
+    set(nary)
+    cmake_parse_arguments(PP "${options}" "${unary}" "${nary}" "${ARGN}")
+
+    if (PP_VERSION)
+        string(REGEX MATCH "[0-9][.][0-9]+" xy "${PP_VERSION}")
+        if (NOT xy)
+            set(problem "Unexpected format for VERSION argument")
+            set(solution "Was ${PP_VERSION}, expected X.Y (e.g. 3.5)")
+            message(SEND_ERROR "${problem}. ${solution}")
+        endif ()
+    endif ()
+
+    if (PP_EXACT AND NOT PP_VERSION)
+        unset(PP_EXACT)
+    endif ()
+
+    set(xyver ${PYTHON_VERSION_MAJOR}.${PYTHON_VERSION_MINOR})
+    if (PP_EXACT AND ("${PYTHON_VERSION_STRING}" VERSION_EQUAL "${PP_VERSION}"
+                    OR ${xyver} VERSION_EQUAL "${PP_VERSION}"))
+        set(problem "Wrong Python version")
+        set(solution "${PP_VERSION} requested, got ${PYTHON_VERSION_STRING}")
+        message(SEND_ERROR "${problem}: ${solution}.")
+    endif ()
+
+    if (PP_VERSION AND "${PYTHON_VERSION_STRING}" VERSION_LESS "${PP_VERSION}")
+        set(found "Found Python ${PYTHON_VERSION_STRING}")
+        set(requested "Python >= ${PP_VERSION} requested")
+        message(SEND_ERROR "${found}, but ${requested}.")
+    endif ()
+
+    add_library(${target} INTERFACE)
+
+    if (PP_REQUIRE_LIBS)
+        set(req REQUIRED)
+    endif ()
+
+    if (NOT PYTHONLIBS_FOUND)
+        find_package(PythonLibs ${req})
+
+        if (NOT PYTHONLIBS_FOUND)
+            return ()
+        endif ()
+
+        set(PYTHONLIBS_FOUND    ${PYTHONLIBS_FOUND}    CACHE INTERNAL "")
+        set(PYTHON_LIBRARIES    ${PYTHON_LIBRARIES}    CACHE INTERNAL "")
+        set(PYTHON_INCLUDE_DIRS ${PYTHON_INCLUDE_DIRS} CACHE INTERNAL "")
+    endif ()
+
+    target_link_libraries(${target} INTERFACE ${PYTHON_LIBRARIES})
+    target_include_directories(${target} SYSTEM INTERFACE ${PYTHON_INCLUDE_DIRS})
+endfunction()
+
 function(add_python_package pkg NAME)
     set(options APPEND VERSION__INIT__)
     set(unary PATH SUBDIR VERSION)
     set(nary  TARGETS SOURCES DEPEND_DIRS)
     cmake_parse_arguments(PP "${options}" "${unary}" "${nary}" "${ARGN}")
 
+    pycmake_init()
     set(installpath ${CMAKE_INSTALL_PREFIX}/${PYTHON_INSTALL_PREFIX})
 
     if (PP_PATH)
