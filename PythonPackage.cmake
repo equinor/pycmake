@@ -510,8 +510,13 @@ function(add_setup_py target template)
         pycmake_list_concat(opt ${flags} ${dir_opt} ${opt})
 
         # remove the python include dir and lib (which is obviously unecessary)
-        list(REMOVE_ITEM inc ${PYTHON_INCLUDE_DIRS})
-        list(REMOVE_ITEM lnk ${PYTHON_LIBRARIES})
+
+        if(inc AND PYTHON_INCLUDE_DIRS)
+            list(REMOVE_ITEM inc ${PYTHON_INCLUDE_DIRS})
+        endif()
+        if(lnk AND PYTHON_LIBRARIES)
+            list(REMOVE_ITEM lnk ${PYTHON_LIBRARIES})
+        endif()
 
         # wrap every string in single quotes (because python expects this)
         foreach (item ${inc})
