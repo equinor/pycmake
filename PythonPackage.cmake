@@ -379,8 +379,9 @@ function(add_python_package pkg NAME)
 
         get_filename_component(abspath ${CMAKE_CURRENT_BINARY_DIR} ABSOLUTE)
         set_target_properties(${pkg} PROPERTIES PACKAGE_INSTALL_PATH ${installpath})
-        set_target_properties(${pkg} PROPERTIES PACKAGE_BUILD_PATH ${abspath})
+        set_target_properties(${pkg} PROPERTIES PACKAGE_BUILD_PATH   ${abspath})
         set_target_properties(${pkg} PROPERTIES PYCMAKE_PACKAGE_NAME ${NAME})
+        set_target_properties(${pkg} PROPERTIES PYCMAKE_PACKAGES     ${NAME})
 
         set(pkgver "0.0.0")
         if (PROJECT_VERSION)
@@ -401,6 +402,14 @@ function(add_python_package pkg NAME)
     if (PP_SUBDIR)
         set(dstpath ${dstpath}/${PP_SUBDIR})
         set(installpath ${installpath}/${PP_SUBDIR})
+
+        # save modules added with SUBDIR - setup.py will want them in packages
+        get_target_property(_packages ${pkg} PYCMAKE_PACKAGES)
+        get_target_property(_pkgname  ${pkg} PYCMAKE_PACKAGE_NAME)
+        list(APPEND _packages ${_pkgname}/${PP_SUBDIR})
+        set_target_properties(${pkg} PROPERTIES PYCMAKE_PACKAGES "${_packages}")
+        unset(_packages)
+        unset(_pkgname)
     endif ()
 
     # copy all .py files into
@@ -409,20 +418,14 @@ function(add_python_package pkg NAME)
         get_filename_component(absfile ${file} ABSOLUTE)
         get_filename_component(fname ${file} NAME)
 
+        add_custom_command(TARGET ${pkg}
+            COMMAND ${CMAKE_COMMAND} -E copy ${absfile} ${dstpath}/
+        )
+
         if ("${fname}" STREQUAL "__init__.py" AND PP_VERSION__INIT__)
             message(STATUS "Writing __version__ ${pkgver} to package ${pkg}.")
-
             set(initpy "${CMAKE_CURRENT_BINARY_DIR}/${dstpath}/${fname}")
-            configure_file(${absfile} ${initpy} COPYONLY)
-
             file(APPEND ${initpy} "__version__ = '${pkgver}'")
-        else ()
-
-        add_custom_command(TARGET ${pkg}
-            COMMAND ${CMAKE_COMMAND} -E make_directory ${dstpath}
-            COMMAND ${CMAKE_COMMAND} -E copy ${absfile} ${dstpath}/
-                )
-
         endif ()
     endforeach ()
 
@@ -484,6 +487,7 @@ function(add_setup_py target template)
     get_target_property(PYCMAKE_VERSION ${target} PYCMAKE_PACKAGE_VERSION)
     get_target_property(extensions ${target} PYCMAKE_EXTENSIONS)
 
+
     get_directory_property(dir_inc INCLUDE_DIRECTORIES)
     get_directory_property(dir_def COMPILE_DEFINITIONS)
     get_directory_property(dir_opt COMPILE_OPTIONS)
@@ -508,6 +512,7 @@ function(add_setup_py target template)
         get_target_property(lnk ${target} PYCMAKE_${ext}_LINK_LIBRARIES)
         get_target_property(def ${target} PYCMAKE_${ext}_COMPILE_DEFINITIONS)
         get_target_property(opt ${target} PYCMAKE_${ext}_COMPILE_OPTIONS)
+        get_target_property(pkg ${target} PYCMAKE_PACKAGES)
 
         pycmake_list_concat(inc ${dir_inc} ${inc})
         pycmake_list_concat(def ${dir_def} ${def})
@@ -572,6 +577,11 @@ function(add_setup_py target template)
             list(APPEND _def "('${_name}', ${_val})")
         endforeach ()
 
+        foreach (item ${pkg})
+            string(REGEX REPLACE "/" "." item ${item})
+            list(APPEND _pkg "'${item}'")
+        endforeach()
+
         if (_inc)
             list(REMOVE_DUPLICATES _inc)
         endif ()
@@ -594,6 +604,9 @@ function(add_setup_py target template)
         string(REGEX REPLACE ";" "," def "${_def}")
         string(REGEX REPLACE ";" "," opt "${_opt}")
         string(REGEX REPLACE ";" "," lnk "${_lnk}")
+        string(REGEX REPLACE ";" "," pkg "${_pkg}")
+
+        set(PYCMAKE_PACKAGES "${pkg}")
 
         # TODO: be able to set other name than ext
         list(APPEND setup_extensions "Extension('${PYCMAKE_PACKAGE_NAME}.${ext}',
