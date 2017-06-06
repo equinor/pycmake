@@ -262,10 +262,11 @@ function(pycmake_include_target_deps pkg tgt depend_dirs)
     list(APPEND extensions ${tgt})
 
     # properties may contain generator expressions, which we filter out
-    string(REGEX REPLACE "\\$<.*>;?" "" includes "${includes}")
-    string(REGEX REPLACE "\\$<.*>;?" "" sources  "${sources}")
-    string(REGEX REPLACE "\\$<.*>;?" "" defines  "${defines}")
-    string(REGEX REPLACE "\\$<.*>;?" "" flags    "${flags}")
+
+    string(REGEX REPLACE "\\$<[^>]+>;?" "" includes "${includes}")
+    string(REGEX REPLACE "\\$<[^>]+>;?" "" sources  "${sources}")
+    string(REGEX REPLACE "\\$<[^>]+>;?" "" defines  "${defines}")
+    string(REGEX REPLACE "\\$<[^>]+>;?" "" flags    "${flags}")
 
     # sources (on shared windows build) can contain .def files for exporting
     # symbols. These are filtered out too, as exporting non-python symbols is
