@@ -249,7 +249,12 @@ function(pycmake_include_target_deps pkg tgt depend_dirs)
 
         unset(_srcs)
         foreach (src ${srcs})
-            list(APPEND _srcs ${prefix}/${src})
+            string(FIND ${src} ${CMAKE_SOURCE_DIR} x)
+            if(${x} EQUAL 0)
+                list(APPEND _srcs ${src})
+            else()
+                list(APPEND _srcs ${prefix}/${src})
+            endif()
         endforeach ()
 
         list(APPEND includes ${incdir})
