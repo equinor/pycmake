@@ -555,12 +555,17 @@ function(add_setup_py target template)
         # defines are a bit more work, because setup.py expects them as tuples
         foreach (item ${def})
             string(FIND ${item} "=" pos)
-            if (${pos} EQUAL -1) # no = in the define, so a None-value
-                list(APPEND _def "('${item}', None)")
-            else ()
-                string(REGEX MATCH "(.*)=(.*)" ignore ${item})
-                list(APPEND _def "('${CMAKE_MATCH_0}', '${CMAKE_MATCH_1}')")
+
+            set(_val None)
+            string(SUBSTRING "${item}" 0 ${pos} _name)
+
+            if (NOT ${pos} EQUAL -1)
+                math(EXPR pos "${pos} + 1")
+                string(SUBSTRING "${item}" ${pos} -1 _val)
+                set(_val '${_val}')
             endif ()
+
+            list(APPEND _def "('${_name}', ${_val})")
         endforeach ()
 
         list(REMOVE_DUPLICATES _inc)
