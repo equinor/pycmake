@@ -428,7 +428,7 @@ function(add_python_package pkg NAME)
 
     # targets are compiled as regular C/C++ libraries (via add_library), before
     # we add some python specific stuff for the linker here.
-    if (WINDOWS)
+    if (WIN32 OR CYGWIN)
         # on windows, .pyd is used as extension instead of DLL
         set(SUFFIX ".pyd")
     elseif (APPLE)
