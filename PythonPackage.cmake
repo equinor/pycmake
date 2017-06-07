@@ -558,6 +558,14 @@ function(add_setup_py target template)
 
         set(_lnk "")
         foreach (item ${lnk})
+            get_filename_component(_libdir ${item} DIRECTORY)
+
+            if (_libdir)
+                list(APPEND _dir '${_libdir}')
+                get_filename_component(item ${item} NAME_WE)
+                string(REGEX REPLACE "lib" "" item ${item})
+            endif ()
+
             list(APPEND _lnk "'${item}'")
         endforeach ()
 
@@ -605,6 +613,7 @@ function(add_setup_py target template)
         string(REGEX REPLACE ";" "," opt "${_opt}")
         string(REGEX REPLACE ";" "," lnk "${_lnk}")
         string(REGEX REPLACE ";" "," pkg "${_pkg}")
+        string(REGEX REPLACE ";" "," dir "${_dir}")
 
         set(PYCMAKE_PACKAGES "${pkg}")
 
@@ -613,6 +622,7 @@ function(add_setup_py target template)
                                                 sources=[${src}],
                                                 include_dirs=[${inc}],
                                                 define_macros=[${def}],
+                                                library_dirs=[${dir}],
                                                 libraries=[${lnk}],
                                                 extra_compile_args=[${opt}])")
 
