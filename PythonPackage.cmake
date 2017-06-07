@@ -350,7 +350,7 @@ endfunction()
 
 function(add_python_package pkg NAME)
     set(options APPEND VERSION__INIT__)
-    set(unary PATH SUBDIR VERSION)
+    set(unary PATH SUBDIR VERSION NO_LINK_FLAGS)
     set(nary  TARGETS SOURCES DEPEND_DIRS)
     cmake_parse_arguments(PP "${options}" "${unary}" "${nary}" "${ARGN}")
 
@@ -461,12 +461,11 @@ function(add_python_package pkg NAME)
 
     # targets are compiled as regular C/C++ libraries (via add_library), before
     # we add some python specific stuff for the linker here.
+    set(SUFFIX ".so")
     if (WIN32 OR CYGWIN)
         # on windows, .pyd is used as extension instead of DLL
         set(SUFFIX ".pyd")
     elseif (APPLE)
-        # regular shared libraries on OS X are .dylib, but python wants .so
-        set(SUFFIX ".so")
         # the spaces in LINK_FLAGS are important; otherwise APPEND_STRING to
         # set_property seem to combine it with previously-set options or
         # mangles it in some other way
@@ -477,19 +476,27 @@ function(add_python_package pkg NAME)
 
     # register all targets as python extensions
     foreach (tgt ${PP_TARGETS})
-        set_target_properties(${tgt} PROPERTIES PREFIX "")
-        if (LINK_FLAGS)
+        if (LINK_FLAGS AND NOT PP_NO_LINK_FLAGS)
             set_property(TARGET ${tgt} APPEND_STRING PROPERTY LINK_FLAGS ${LINK_FLAGS})
-        endif()
-        if (SUFFIX)
-            set_property(TARGET ${tgt} APPEND_STRING PROPERTY SUFFIX ${SUFFIX})
         endif()
 
         # copy all targets into the package directory
-        add_custom_command(TARGET ${tgt} POST_BUILD
+        get_target_property(_lib ${tgt} OUTPUT_NAME)
+        if (NOT _lib)
+            # if OUTPUT_NAME is not set, library base name is the same as the
+            # target name
+            set(_lib ${tgt})
+        endif ()
+
+        string(REGEX REPLACE "^lib" "" _lib ${_lib}${SUFFIX})
+        add_custom_command(OUTPUT ${dstpath}/${_lib}
             COMMAND ${CMAKE_COMMAND} -E make_directory ${dstpath}
-            COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${tgt}> ${dstpath}/
+            COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${tgt}> ${dstpath}/${_lib}
+            DEPENDS ${tgt}
         )
+        add_custom_target(pycmake-ext-${pkg}-${_lib} ALL DEPENDS ${dstpath}/${_lib})
+        add_dependencies(${pkg} pycmake-ext-${pkg}-${_lib})
+        unset(_lib)
 
         # traverse all dependencies and get their include dirs, link flags etc.
         pycmake_include_target_deps(${pkg} ${tgt} "${PP_DEPEND_DIRS}")
