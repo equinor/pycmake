@@ -514,7 +514,7 @@ endfunction()
 
 function(add_setup_py target template)
     set(options)
-    set(unary MANIFEST)
+    set(unary MANIFEST OUTPUT)
     set(nary)
     cmake_parse_arguments(PP "${options}" "${unary}" "${nary}" "${ARGN}")
 
@@ -682,7 +682,11 @@ function(add_setup_py target template)
     file(APPEND ${CMAKE_CURRENT_BINARY_DIR}/MANIFEST.in
                 "recursive-include include *.h *.hh *.H *.hpp *.hxx")
 
-    configure_file(${template} setup.py)
+    set(setup.py setup.py)
+    if (PP_OUTPUT)
+        set(setup.py ${PP_OUTPUT})
+    endif ()
+    configure_file(${template} ${setup.py})
 endfunction ()
 
 function(add_python_test TESTNAME PYTHON_TEST_FILE)
