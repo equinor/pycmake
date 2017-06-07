@@ -535,14 +535,8 @@ function(add_setup_py target template)
     string(REGEX REPLACE " " ";" cflags ${cflags})
     string(REGEX REPLACE " " ";" cxxflags ${cxxflags})
 
+    set(flags ${cflags} ${cxxflags})
     foreach (ext ${extensions})
-
-        get_target_property(cxx ${ext} HAS_CXX)
-        if (${cxx})
-            set(flags ${cxxflags})
-        else ()
-            set(flags ${cflags})
-        endif ()
 
         get_target_property(inc ${target} PYCMAKE_${ext}_INCLUDE_DIRECTORIES)
         get_target_property(src ${target} PYCMAKE_${ext}_SOURCES)
