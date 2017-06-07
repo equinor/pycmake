@@ -418,16 +418,46 @@ function(add_python_package pkg NAME)
         get_filename_component(absfile ${file} ABSOLUTE)
         get_filename_component(fname ${file} NAME)
 
-        add_custom_command(TARGET ${pkg}
+        add_custom_command(OUTPUT ${dstpath}/${fname}
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${dstpath}
             COMMAND ${CMAKE_COMMAND} -E copy ${absfile} ${dstpath}/
+            DEPENDS ${absfile}
         )
+
+        list(APPEND _files ${dstpath}/${fname})
 
         if ("${fname}" STREQUAL "__init__.py" AND PP_VERSION__INIT__)
             message(STATUS "Writing __version__ ${pkgver} to package ${pkg}.")
             set(initpy "${CMAKE_CURRENT_BINARY_DIR}/${dstpath}/${fname}")
             file(APPEND ${initpy} "__version__ = '${pkgver}'")
+            unset(_initpy)
         endif ()
     endforeach ()
+
+    # drive the copying of .py files and add the dependency on the python
+    # package target
+    get_target_property(_pkgname  ${pkg} PYCMAKE_PACKAGE_NAME)
+    set(_id ${pkg}-${_pkgname})
+    string(REGEX REPLACE "[:/\\]" "-" _subdir "${PP_SUBDIR}-${_pkgname}")
+
+    # make target-names slightly nicer, i.e. use subdir as target names
+    if (NOT TARGET ${pkg}-${_subdir} AND PP_SUBDIR)
+        set(pycmake-${pkg}-${_subdir} 0 CACHE INTERNAL "")
+        set(_id ${pkg}-${_subdir})
+    elseif (PP_SUBDIR)
+        # The same SUBDIR has been used multiple times for this target Since
+        # it's not possible to append source files to custom targets, a new one
+        # is created with an enumerator, incremented for every extra use.
+        math(EXPR _id "${pycmake-${pkg}-${_subdir}} + 1")
+        set(pycmake-${pkg}-${_subdir} ${_id} CACHE INTERNAL "" FORCE)
+        set(_id ${pkg}-${_subdir}-${_id})
+    endif ()
+
+    add_custom_target(${_id} ALL SOURCES ${_files} DEPENDS ${_files})
+    add_dependencies(${pkg} ${_id})
+    unset(_id)
+    unset(_files)
+    unset(_subdir)
 
     # targets are compiled as regular C/C++ libraries (via add_library), before
     # we add some python specific stuff for the linker here.
