@@ -443,7 +443,7 @@ function(add_python_package pkg NAME)
         get_filename_component(absfile ${file} ABSOLUTE)
         get_filename_component(fname ${file} NAME)
 
-        file(MAKE_DIRECTORY ${dstpath})
+        file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${dstpath})
         add_custom_command(OUTPUT ${dstpath}/${fname}
             COMMAND ${CMAKE_COMMAND} -E copy ${absfile} ${dstpath}/
             DEPENDS ${absfile}
@@ -518,7 +518,7 @@ function(add_python_package pkg NAME)
         endif ()
 
         string(REGEX REPLACE "^lib" "" _lib ${_lib}${SUFFIX})
-        file(MAKE_DIRECTORY ${dstpath})
+        file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${dstpath})
         add_custom_command(OUTPUT ${dstpath}/${_lib}
             COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${tgt}> ${dstpath}/${_lib}
             DEPENDS ${tgt}
