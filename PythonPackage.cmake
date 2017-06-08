@@ -415,6 +415,28 @@ function(add_python_package pkg NAME)
         unset(_pkgname)
     endif ()
 
+    # this is pretty gritty, but cmake has no generate-time file append write a
+    # tiny cmake script that appends to some file and writes the version
+    # string, which hooks into add_custom_command, and append this command on
+    # the copy of the __init__ requested for versioning. This means writing
+    # __version__ is a part of the file copy itself and won't be considered a
+    # change to the file.
+    if (PP_VERSION__INIT__)
+        if (PP_SUBDIR)
+            set(f ${PP_SUBDIR})
+        else ()
+            set(f init)
+        endif ()
+        string(REGEX REPLACE "[:/\\]" "-" initscript "${pkg}.${f}.cmake")
+        unset(f)
+        set(initscript ${CMAKE_CURRENT_BINARY_DIR}/${initscript})
+
+        message(STATUS "Writing to " ${initscript})
+        file(WRITE ${initscript}
+            "file(APPEND \${PYCMAKE__INIT__} __version__='${pkgver}')"
+        )
+    endif ()
+
     # copy all .py files into
     foreach (file ${PP_SOURCES})
 
@@ -431,9 +453,13 @@ function(add_python_package pkg NAME)
 
         if ("${fname}" STREQUAL "__init__.py" AND PP_VERSION__INIT__)
             message(STATUS "Writing __version__ ${pkgver} to package ${pkg}.")
-            set(initpy "${CMAKE_CURRENT_BINARY_DIR}/${dstpath}/${fname}")
-            file(APPEND ${initpy} "__version__ = '${pkgver}'")
-            unset(_initpy)
+            add_custom_command(OUTPUT ${dstpath}/${fname}
+                COMMAND ${CMAKE_COMMAND} -DPYCMAKE__INIT__=${dstpath}/${fname}
+                                         -P ${initscript}
+                APPEND
+            )
+            unset(initpy)
+            unset(initscript)
         endif ()
     endforeach ()
 
