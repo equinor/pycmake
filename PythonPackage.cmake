@@ -29,6 +29,8 @@
 #   When VERSION <ver> is used (without exact), this specifies the minimum
 #   python version.
 #
+#   This function requires cmake3
+#
 # * add_python_package(<target> <name>
 #                      [APPEND] [VERSION__INIT__]
 #                      [SUBDIR <dir>] [PATH <path>]
@@ -119,6 +121,8 @@ function(pycmake_init)
         set(PYTHON_EXECUTABLE     ${PYTHON_EXECUTABLE}     CACHE INTERNAL "")
     endif ()
 
+    set(pyver ${PYTHON_VERSION_MAJOR}.${PYTHON_VERSION_MINOR})
+
     if (EXISTS "/etc/debian_version")
         set(PYTHON_PACKAGE_PATH "dist-packages")
     else()
@@ -175,8 +179,12 @@ function(pycmake_target_dependencies dependencies links target)
         endif ()
     endforeach ()
 
-    list(REMOVE_DUPLICATES _dependencies)
-    list(REMOVE_DUPLICATES _links)
+    if ( _dependencies )
+        list(REMOVE_DUPLICATES _dependencies)
+    endif ()
+    if (_links)
+        list(REMOVE_DUPLICATES _links)
+    endif ()
     set(${dependencies} "${_dependencies}" PARENT_SCOPE)
     set(${links} "${_links}" PARENT_SCOPE)
 endfunction ()
@@ -210,20 +218,6 @@ function(pycmake_include_target_deps pkg tgt depend_dirs)
     endif ()
 
     foreach (dep ${deps})
-        # If sources files were registered with absolute path (prefix'd with
-        # ${CMAKE_CURRENT_SOURCE_DIR}) we can just use this absolute path and
-        # be fine. If not, we assume that if the source file is *not* relative
-        # but below the current dir if it's NOT in the depend_dir list, in
-        # which case we make it absolute. This ends up in the sources argument
-        # to Extensions in setup.py
-        list(FIND depend_dirs ${dep} index)
-        if (NOT ${index} EQUAL -1)
-            math(EXPR index "${index} + 1")
-            list(GET depend_dirs ${index} prefix)
-        else ()
-            set(prefix ${CMAKE_CURRENT_SOURCE_DIR})
-        endif ()
-
         # If this is an interface library then most of these are probably empty
         # *and* cmake will crash if we look up any non-INTERFACE_ properties,
         # so prepend INTERFACE_ on interface targets
@@ -245,25 +239,46 @@ function(pycmake_include_target_deps pkg tgt depend_dirs)
             endif ()
         endforeach ()
 
+        # If sources files were registered with absolute path (prefix'd with
+        # ${CMAKE_SOURCE_DIR}) we can just use this absolute path and
+        # be fine. If not, we assume that if the source file is *not* relative
+        # but below the current dir if it's NOT in the depend_dir list, in
+        # which case we make it absolute. This ends up in the sources argument
+        # to Extensions in setup.py
+        list(FIND depend_dirs ${dep} index)
+        if (NOT ${index} EQUAL -1)
+            math(EXPR index "${index} + 1")
+            list(GET depend_dirs ${index} prefix)
+        else ()
+            set(prefix ${CMAKE_CURRENT_SOURCE_DIR})
+        endif ()
+
         unset(_srcs)
         foreach (src ${srcs})
-            list(APPEND _srcs ${prefix}/${src})
+            string(FIND ${src} ${CMAKE_SOURCE_DIR} x)
+            if(${x} EQUAL 0)
+                list(APPEND _srcs ${src})
+            else()
+                list(APPEND _srcs ${prefix}/${src})
+            endif()
         endforeach ()
+        unset(prefix)
 
         list(APPEND includes ${incdir})
         list(APPEND sources  ${_srcs})
         list(APPEND defines  ${defs})
-        list(APPEND flags    ${flags})
+        list(APPEND flags    ${flgs})
     endforeach()
 
     get_target_property(extensions ${pkg} PYCMAKE_EXTENSIONS)
     list(APPEND extensions ${tgt})
 
     # properties may contain generator expressions, which we filter out
-    string(REGEX REPLACE "\\$<.*>;?" "" includes "${includes}")
-    string(REGEX REPLACE "\\$<.*>;?" "" sources  "${sources}")
-    string(REGEX REPLACE "\\$<.*>;?" "" defines  "${defines}")
-    string(REGEX REPLACE "\\$<.*>;?" "" flags    "${flags}")
+
+    string(REGEX REPLACE "\\$<[^>]+>;?" "" includes "${includes}")
+    string(REGEX REPLACE "\\$<[^>]+>;?" "" sources  "${sources}")
+    string(REGEX REPLACE "\\$<[^>]+>;?" "" defines  "${defines}")
+    string(REGEX REPLACE "\\$<[^>]+>;?" "" flags    "${flags}")
 
     # sources (on shared windows build) can contain .def files for exporting
     # symbols. These are filtered out too, as exporting non-python symbols is
@@ -338,7 +353,7 @@ endfunction()
 
 function(add_python_package pkg NAME)
     set(options APPEND VERSION__INIT__)
-    set(unary PATH SUBDIR VERSION)
+    set(unary PATH SUBDIR VERSION NO_LINK_FLAGS)
     set(nary  TARGETS SOURCES DEPEND_DIRS)
     cmake_parse_arguments(PP "${options}" "${unary}" "${nary}" "${ARGN}")
 
@@ -367,8 +382,9 @@ function(add_python_package pkg NAME)
 
         get_filename_component(abspath ${CMAKE_CURRENT_BINARY_DIR} ABSOLUTE)
         set_target_properties(${pkg} PROPERTIES PACKAGE_INSTALL_PATH ${installpath})
-        set_target_properties(${pkg} PROPERTIES PACKAGE_BUILD_PATH ${abspath})
+        set_target_properties(${pkg} PROPERTIES PACKAGE_BUILD_PATH   ${abspath})
         set_target_properties(${pkg} PROPERTIES PYCMAKE_PACKAGE_NAME ${NAME})
+        set_target_properties(${pkg} PROPERTIES PYCMAKE_PACKAGES     ${NAME})
 
         set(pkgver "0.0.0")
         if (PROJECT_VERSION)
@@ -389,6 +405,36 @@ function(add_python_package pkg NAME)
     if (PP_SUBDIR)
         set(dstpath ${dstpath}/${PP_SUBDIR})
         set(installpath ${installpath}/${PP_SUBDIR})
+
+        # save modules added with SUBDIR - setup.py will want them in packages
+        get_target_property(_packages ${pkg} PYCMAKE_PACKAGES)
+        get_target_property(_pkgname  ${pkg} PYCMAKE_PACKAGE_NAME)
+        list(APPEND _packages ${_pkgname}/${PP_SUBDIR})
+        set_target_properties(${pkg} PROPERTIES PYCMAKE_PACKAGES "${_packages}")
+        unset(_packages)
+        unset(_pkgname)
+    endif ()
+
+    # this is pretty gritty, but cmake has no generate-time file append write a
+    # tiny cmake script that appends to some file and writes the version
+    # string, which hooks into add_custom_command, and append this command on
+    # the copy of the __init__ requested for versioning. This means writing
+    # __version__ is a part of the file copy itself and won't be considered a
+    # change to the file.
+    if (PP_VERSION__INIT__)
+        if (PP_SUBDIR)
+            set(f ${PP_SUBDIR})
+        else ()
+            set(f init)
+        endif ()
+        string(REGEX REPLACE "[:/\\]" "-" initscript "${pkg}.${f}.cmake")
+        unset(f)
+        set(initscript ${CMAKE_CURRENT_BINARY_DIR}/${initscript})
+
+        message(STATUS "Writing to " ${initscript})
+        file(WRITE ${initscript}
+            "file(APPEND \${PYCMAKE__INIT__} __version__='${pkgver}')"
+        )
     endif ()
 
     # copy all .py files into
@@ -397,31 +443,58 @@ function(add_python_package pkg NAME)
         get_filename_component(absfile ${file} ABSOLUTE)
         get_filename_component(fname ${file} NAME)
 
+        file(MAKE_DIRECTORY ${dstpath})
+        add_custom_command(OUTPUT ${dstpath}/${fname}
+            COMMAND ${CMAKE_COMMAND} -E copy ${absfile} ${dstpath}/
+            DEPENDS ${absfile}
+        )
+
+        list(APPEND _files ${dstpath}/${fname})
+
         if ("${fname}" STREQUAL "__init__.py" AND PP_VERSION__INIT__)
             message(STATUS "Writing __version__ ${pkgver} to package ${pkg}.")
-
-            set(initpy "${CMAKE_CURRENT_BINARY_DIR}/${dstpath}/${fname}")
-            configure_file(${absfile} ${initpy} COPYONLY)
-
-            file(APPEND ${initpy} "__version__ = '${pkgver}'")
-        else ()
-
-        add_custom_command(TARGET ${pkg}
-            COMMAND ${CMAKE_COMMAND} -E make_directory ${dstpath}
-            COMMAND ${CMAKE_COMMAND} -E copy ${absfile} ${dstpath}/
-                )
-
+            add_custom_command(OUTPUT ${dstpath}/${fname}
+                COMMAND ${CMAKE_COMMAND} -DPYCMAKE__INIT__=${dstpath}/${fname}
+                                         -P ${initscript}
+                APPEND
+            )
+            unset(initpy)
+            unset(initscript)
         endif ()
     endforeach ()
 
+    # drive the copying of .py files and add the dependency on the python
+    # package target
+    get_target_property(_pkgname  ${pkg} PYCMAKE_PACKAGE_NAME)
+    set(_id ${pkg}-${_pkgname})
+    string(REGEX REPLACE "[:/\\]" "-" _subdir "${PP_SUBDIR}-${_pkgname}")
+
+    # make target-names slightly nicer, i.e. use subdir as target names
+    if (NOT TARGET ${pkg}-${_subdir} AND PP_SUBDIR)
+        set(pycmake-${pkg}-${_subdir} 0 CACHE INTERNAL "")
+        set(_id ${pkg}-${_subdir})
+    elseif (PP_SUBDIR)
+        # The same SUBDIR has been used multiple times for this target Since
+        # it's not possible to append source files to custom targets, a new one
+        # is created with an enumerator, incremented for every extra use.
+        math(EXPR _id "${pycmake-${pkg}-${_subdir}} + 1")
+        set(pycmake-${pkg}-${_subdir} ${_id} CACHE INTERNAL "" FORCE)
+        set(_id ${pkg}-${_subdir}-${_id})
+    endif ()
+
+    add_custom_target(${_id} ALL SOURCES ${_files} DEPENDS ${_files})
+    add_dependencies(${pkg} ${_id})
+    unset(_id)
+    unset(_files)
+    unset(_subdir)
+
     # targets are compiled as regular C/C++ libraries (via add_library), before
     # we add some python specific stuff for the linker here.
-    if (WINDOWS)
+    set(SUFFIX ".so")
+    if (WIN32 OR CYGWIN)
         # on windows, .pyd is used as extension instead of DLL
         set(SUFFIX ".pyd")
     elseif (APPLE)
-        # regular shared libraries on OS X are .dylib, but python wants .so
-        set(SUFFIX ".so")
         # the spaces in LINK_FLAGS are important; otherwise APPEND_STRING to
         # set_property seem to combine it with previously-set options or
         # mangles it in some other way
@@ -432,19 +505,27 @@ function(add_python_package pkg NAME)
 
     # register all targets as python extensions
     foreach (tgt ${PP_TARGETS})
-        set_target_properties(${tgt} PROPERTIES PREFIX "")
-        if (LINK_FLAGS)
+        if (LINK_FLAGS AND NOT PP_NO_LINK_FLAGS)
             set_property(TARGET ${tgt} APPEND_STRING PROPERTY LINK_FLAGS ${LINK_FLAGS})
-        endif()
-        if (SUFFIX)
-            set_property(TARGET ${tgt} APPEND_STRING PROPERTY SUFFIX ${SUFFIX})
         endif()
 
         # copy all targets into the package directory
-        add_custom_command(TARGET ${tgt} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E make_directory ${dstpath}
-            COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${tgt}> ${dstpath}/
+        get_target_property(_lib ${tgt} OUTPUT_NAME)
+        if (NOT _lib)
+            # if OUTPUT_NAME is not set, library base name is the same as the
+            # target name
+            set(_lib ${tgt})
+        endif ()
+
+        string(REGEX REPLACE "^lib" "" _lib ${_lib}${SUFFIX})
+        file(MAKE_DIRECTORY ${dstpath})
+        add_custom_command(OUTPUT ${dstpath}/${_lib}
+            COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${tgt}> ${dstpath}/${_lib}
+            DEPENDS ${tgt}
         )
+        add_custom_target(pycmake-ext-${pkg}-${_lib} ALL DEPENDS ${dstpath}/${_lib})
+        add_dependencies(${pkg} pycmake-ext-${pkg}-${_lib})
+        unset(_lib)
 
         # traverse all dependencies and get their include dirs, link flags etc.
         pycmake_include_target_deps(${pkg} ${tgt} "${PP_DEPEND_DIRS}")
@@ -462,7 +543,7 @@ endfunction()
 
 function(add_setup_py target template)
     set(options)
-    set(unary MANIFEST)
+    set(unary MANIFEST OUTPUT)
     set(nary)
     cmake_parse_arguments(PP "${options}" "${unary}" "${nary}" "${ARGN}")
 
@@ -471,6 +552,7 @@ function(add_setup_py target template)
     get_target_property(PYCMAKE_PACKAGE_NAME ${target} PYCMAKE_PACKAGE_NAME)
     get_target_property(PYCMAKE_VERSION ${target} PYCMAKE_PACKAGE_VERSION)
     get_target_property(extensions ${target} PYCMAKE_EXTENSIONS)
+
 
     get_directory_property(dir_inc INCLUDE_DIRECTORIES)
     get_directory_property(dir_def COMPILE_DEFINITIONS)
@@ -482,28 +564,28 @@ function(add_setup_py target template)
     string(REGEX REPLACE " " ";" cflags ${cflags})
     string(REGEX REPLACE " " ";" cxxflags ${cxxflags})
 
+    set(flags ${cflags} ${cxxflags})
     foreach (ext ${extensions})
-
-        get_target_property(cxx ${ext} HAS_CXX)
-        if (${cxx})
-            set(flags ${cxxflags})
-        else ()
-            set(flags ${cflags})
-        endif ()
 
         get_target_property(inc ${target} PYCMAKE_${ext}_INCLUDE_DIRECTORIES)
         get_target_property(src ${target} PYCMAKE_${ext}_SOURCES)
         get_target_property(lnk ${target} PYCMAKE_${ext}_LINK_LIBRARIES)
         get_target_property(def ${target} PYCMAKE_${ext}_COMPILE_DEFINITIONS)
         get_target_property(opt ${target} PYCMAKE_${ext}_COMPILE_OPTIONS)
+        get_target_property(pkg ${target} PYCMAKE_PACKAGES)
 
         pycmake_list_concat(inc ${dir_inc} ${inc})
         pycmake_list_concat(def ${dir_def} ${def})
         pycmake_list_concat(opt ${flags} ${dir_opt} ${opt})
 
         # remove the python include dir and lib (which is obviously unecessary)
-        list(REMOVE_ITEM inc ${PYTHON_INCLUDE_DIRS})
-        list(REMOVE_ITEM lnk ${PYTHON_LIBRARIES})
+
+        if(inc AND PYTHON_INCLUDE_DIRS)
+            list(REMOVE_ITEM inc ${PYTHON_INCLUDE_DIRS})
+        endif()
+        if(lnk AND PYTHON_LIBRARIES)
+            list(REMOVE_ITEM lnk ${PYTHON_LIBRARIES})
+        endif()
 
         # wrap every string in single quotes (because python expects this)
         foreach (item ${inc})
@@ -536,24 +618,50 @@ function(add_setup_py target template)
 
         set(_lnk "")
         foreach (item ${lnk})
+            get_filename_component(_libdir ${item} DIRECTORY)
+
+            if (_libdir)
+                list(APPEND _dir '${_libdir}')
+                get_filename_component(item ${item} NAME_WE)
+                string(REGEX REPLACE "lib" "" item ${item})
+            endif ()
+
             list(APPEND _lnk "'${item}'")
         endforeach ()
 
         # defines are a bit more work, because setup.py expects them as tuples
         foreach (item ${def})
             string(FIND ${item} "=" pos)
-            if (${pos} EQUAL -1) # no = in the define, so a None-value
-                list(APPEND _def "('${item}', None)")
-            else ()
-                string(REGEX MATCH "(.*)=(.*)" ignore ${item})
-                list(APPEND _def "('${CMAKE_MATCH_0}', '${CMAKE_MATCH_1}')")
+
+            set(_val None)
+            string(SUBSTRING "${item}" 0 ${pos} _name)
+
+            if (NOT ${pos} EQUAL -1)
+                math(EXPR pos "${pos} + 1")
+                string(SUBSTRING "${item}" ${pos} -1 _val)
+                set(_val '${_val}')
             endif ()
+
+            list(APPEND _def "('${_name}', ${_val})")
         endforeach ()
 
-        list(REMOVE_DUPLICATES _inc)
-        list(REMOVE_DUPLICATES _src)
-        list(REMOVE_DUPLICATES _def)
-        list(REMOVE_DUPLICATES _lnk)
+        foreach (item ${pkg})
+            string(REGEX REPLACE "/" "." item ${item})
+            list(APPEND _pkg "'${item}'")
+        endforeach()
+
+        if (_inc)
+            list(REMOVE_DUPLICATES _inc)
+        endif ()
+        if( _src)
+            list(REMOVE_DUPLICATES _src)
+        endif ()
+        if( _def)
+            list(REMOVE_DUPLICATES _def)
+        endif ()
+        if( _lnk)
+            list(REMOVE_DUPLICATES _lnk)
+        endif ()
         # do not remote duplictes for compiler options, because some are
         # legitemately passed multiple times, e.g. on clang for osx builds
         # `-arch i386 -arch x86_64`
@@ -564,12 +672,17 @@ function(add_setup_py target template)
         string(REGEX REPLACE ";" "," def "${_def}")
         string(REGEX REPLACE ";" "," opt "${_opt}")
         string(REGEX REPLACE ";" "," lnk "${_lnk}")
+        string(REGEX REPLACE ";" "," pkg "${_pkg}")
+        string(REGEX REPLACE ";" "," dir "${_dir}")
+
+        set(PYCMAKE_PACKAGES "${pkg}")
 
         # TODO: be able to set other name than ext
         list(APPEND setup_extensions "Extension('${PYCMAKE_PACKAGE_NAME}.${ext}',
                                                 sources=[${src}],
                                                 include_dirs=[${inc}],
                                                 define_macros=[${def}],
+                                                library_dirs=[${dir}],
                                                 libraries=[${lnk}],
                                                 extra_compile_args=[${opt}])")
 
@@ -592,7 +705,11 @@ function(add_setup_py target template)
     file(APPEND ${CMAKE_CURRENT_BINARY_DIR}/MANIFEST.in
                 "recursive-include include *.h *.hh *.H *.hpp *.hxx")
 
-    configure_file(${template} setup.py)
+    set(setup.py setup.py)
+    if (PP_OUTPUT)
+        set(setup.py ${PP_OUTPUT})
+    endif ()
+    configure_file(${template} ${setup.py})
 endfunction ()
 
 function(add_python_test TESTNAME PYTHON_TEST_FILE)
