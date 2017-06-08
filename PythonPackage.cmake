@@ -267,7 +267,7 @@ function(pycmake_include_target_deps pkg tgt depend_dirs)
         list(APPEND includes ${incdir})
         list(APPEND sources  ${_srcs})
         list(APPEND defines  ${defs})
-        list(APPEND flags    ${flags})
+        list(APPEND flags    ${flgs})
     endforeach()
 
     get_target_property(extensions ${pkg} PYCMAKE_EXTENSIONS)
