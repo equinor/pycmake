@@ -216,20 +216,6 @@ function(pycmake_include_target_deps pkg tgt depend_dirs)
     endif ()
 
     foreach (dep ${deps})
-        # If sources files were registered with absolute path (prefix'd with
-        # ${CMAKE_CURRENT_SOURCE_DIR}) we can just use this absolute path and
-        # be fine. If not, we assume that if the source file is *not* relative
-        # but below the current dir if it's NOT in the depend_dir list, in
-        # which case we make it absolute. This ends up in the sources argument
-        # to Extensions in setup.py
-        list(FIND depend_dirs ${dep} index)
-        if (NOT ${index} EQUAL -1)
-            math(EXPR index "${index} + 1")
-            list(GET depend_dirs ${index} prefix)
-        else ()
-            set(prefix ${CMAKE_CURRENT_SOURCE_DIR})
-        endif ()
-
         # If this is an interface library then most of these are probably empty
         # *and* cmake will crash if we look up any non-INTERFACE_ properties,
         # so prepend INTERFACE_ on interface targets
@@ -251,6 +237,20 @@ function(pycmake_include_target_deps pkg tgt depend_dirs)
             endif ()
         endforeach ()
 
+        # If sources files were registered with absolute path (prefix'd with
+        # ${CMAKE_SOURCE_DIR}) we can just use this absolute path and
+        # be fine. If not, we assume that if the source file is *not* relative
+        # but below the current dir if it's NOT in the depend_dir list, in
+        # which case we make it absolute. This ends up in the sources argument
+        # to Extensions in setup.py
+        list(FIND depend_dirs ${dep} index)
+        if (NOT ${index} EQUAL -1)
+            math(EXPR index "${index} + 1")
+            list(GET depend_dirs ${index} prefix)
+        else ()
+            set(prefix ${CMAKE_CURRENT_SOURCE_DIR})
+        endif ()
+
         unset(_srcs)
         foreach (src ${srcs})
             string(FIND ${src} ${CMAKE_SOURCE_DIR} x)
@@ -260,6 +260,7 @@ function(pycmake_include_target_deps pkg tgt depend_dirs)
                 list(APPEND _srcs ${prefix}/${src})
             endif()
         endforeach ()
+        unset(prefix)
 
         list(APPEND includes ${incdir})
         list(APPEND sources  ${_srcs})
