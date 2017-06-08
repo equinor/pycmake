@@ -29,6 +29,8 @@
 #   When VERSION <ver> is used (without exact), this specifies the minimum
 #   python version.
 #
+#   This function requires cmake3
+#
 # * add_python_package(<target> <name>
 #                      [APPEND] [VERSION__INIT__]
 #                      [SUBDIR <dir>] [PATH <path>]
