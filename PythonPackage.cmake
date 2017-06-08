@@ -552,7 +552,7 @@ function(add_setup_py target template)
     get_target_property(PYCMAKE_PACKAGE_NAME ${target} PYCMAKE_PACKAGE_NAME)
     get_target_property(PYCMAKE_VERSION ${target} PYCMAKE_PACKAGE_VERSION)
     get_target_property(extensions ${target} PYCMAKE_EXTENSIONS)
-
+    get_target_property(pkg ${target} PYCMAKE_PACKAGES)
 
     get_directory_property(dir_inc INCLUDE_DIRECTORIES)
     get_directory_property(dir_def COMPILE_DEFINITIONS)
@@ -563,8 +563,15 @@ function(add_setup_py target template)
     set(cxxflags "${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_${buildtype}}")
     string(REGEX REPLACE " " ";" cflags ${cflags})
     string(REGEX REPLACE " " ";" cxxflags ${cxxflags})
-
     set(flags ${cflags} ${cxxflags})
+
+    foreach (item ${pkg})
+        string(REGEX REPLACE "/" "." item ${item})
+        list(APPEND _pkg "'${item}'")
+    endforeach()
+    string(REGEX REPLACE ";" "," pkg "${_pkg}")
+    set(PYCMAKE_PACKAGES "${pkg}")
+
     foreach (ext ${extensions})
 
         get_target_property(inc ${target} PYCMAKE_${ext}_INCLUDE_DIRECTORIES)
@@ -572,7 +579,6 @@ function(add_setup_py target template)
         get_target_property(lnk ${target} PYCMAKE_${ext}_LINK_LIBRARIES)
         get_target_property(def ${target} PYCMAKE_${ext}_COMPILE_DEFINITIONS)
         get_target_property(opt ${target} PYCMAKE_${ext}_COMPILE_OPTIONS)
-        get_target_property(pkg ${target} PYCMAKE_PACKAGES)
 
         pycmake_list_concat(inc ${dir_inc} ${inc})
         pycmake_list_concat(def ${dir_def} ${def})
@@ -645,11 +651,6 @@ function(add_setup_py target template)
             list(APPEND _def "('${_name}', ${_val})")
         endforeach ()
 
-        foreach (item ${pkg})
-            string(REGEX REPLACE "/" "." item ${item})
-            list(APPEND _pkg "'${item}'")
-        endforeach()
-
         if (_inc)
             list(REMOVE_DUPLICATES _inc)
         endif ()
@@ -672,10 +673,7 @@ function(add_setup_py target template)
         string(REGEX REPLACE ";" "," def "${_def}")
         string(REGEX REPLACE ";" "," opt "${_opt}")
         string(REGEX REPLACE ";" "," lnk "${_lnk}")
-        string(REGEX REPLACE ";" "," pkg "${_pkg}")
         string(REGEX REPLACE ";" "," dir "${_dir}")
-
-        set(PYCMAKE_PACKAGES "${pkg}")
 
         # TODO: be able to set other name than ext
         list(APPEND setup_extensions "Extension('${PYCMAKE_PACKAGE_NAME}.${ext}',
