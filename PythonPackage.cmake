@@ -121,6 +121,8 @@ function(pycmake_init)
         set(PYTHON_EXECUTABLE     ${PYTHON_EXECUTABLE}     CACHE INTERNAL "")
     endif ()
 
+    set(pyver ${PYTHON_VERSION_MAJOR}.${PYTHON_VERSION_MINOR})
+
     if (EXISTS "/etc/debian_version")
         set(PYTHON_PACKAGE_PATH "dist-packages")
     else()
