@@ -73,7 +73,8 @@
 #   This command provides install targets, but no exports.
 #
 # * add_setup_py(<target> <template>
-#                [MANIFEST <manifest>])
+#                [MANIFEST <manifest>]
+#                [OUTPUT <output>])
 #
 #   Create a setuptools package that is capable of building (for sdist+bdist)
 #   and uploading packages to pypi and similar.
@@ -85,6 +86,9 @@
 #   included, suitable for source distribution. If you want to include other
 #   things in the package that isn't suitable to add to the setup.py template,
 #   point the MANIFEST argument to your base file.
+#
+#  This command outputs setup.py by default, but if OUTPUT is specified, the
+#  generated file is <output> instead
 #
 # * add_python_test(testname python_test_file)
 #       which sets up a test target (using pycmake_test_runner.py, distributed
