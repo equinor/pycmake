@@ -73,7 +73,8 @@
 #   This command provides install targets, but no exports.
 #
 # * add_setup_py(<target> <template>
-#                [MANIFEST <manifest>])
+#                [MANIFEST <manifest>]
+#                [OUTPUT <output>])
 #
 #   Create a setuptools package that is capable of building (for sdist+bdist)
 #   and uploading packages to pypi and similar.
@@ -85,6 +86,9 @@
 #   included, suitable for source distribution. If you want to include other
 #   things in the package that isn't suitable to add to the setup.py template,
 #   point the MANIFEST argument to your base file.
+#
+#  This command outputs setup.py by default, but if OUTPUT is specified, the
+#  generated file is <output> instead
 #
 # * add_python_test(testname python_test_file)
 #       which sets up a test target (using pycmake_test_runner.py, distributed
@@ -595,27 +599,32 @@ function(add_setup_py target template)
 
         # wrap every string in single quotes (because python expects this)
         foreach (item ${inc})
-            # project-provided headers must be bundled for sdist
-
-            get_filename_component(dstpath include/${item} DIRECTORY)
-            string(REGEX REPLACE "([a-zA-Z]):" "\\1" dstpath "${dstpath}")
+            # project-provided headers must be bundled for sdist, so add them
+            # to the pycmake/include directory
+            get_filename_component(dstpath pycmake/include/${item} DIRECTORY)
+            string(REGEX REPLACE "${CMAKE_SOURCE_DIR}" "" dstpath "${dstpath}")
+            string(REGEX REPLACE "${CMAKE_BINARY_DIR}" "" dstpath "${dstpath}")
+            string(REGEX REPLACE "//" "/" dstpath "${dstpath}")
 
             pycmake_is_system_path(syspath ${item})
             if (NOT ${syspath})
                 file(COPY ${item} DESTINATION ${dstpath})
             endif ()
-
-            string(REGEX REPLACE "([a-zA-Z]):" "\\1" item "${item}")
-            list(APPEND _inc "'include/${item}'")
+            get_filename_component(item ${item} NAME)
+            list(APPEND _inc "'${dstpath}/${item}'")
+            unset(dstpath)
         endforeach ()
 
         foreach (item ${src})
             # setup.py is pretty grumpy and wants source files relative itself
             # AND not upwards, so we must copy our entire source tree into the
             # build dir
-            string(REGEX REPLACE "[a-zA-Z]:" "" dstitem "${item}")
+            string(REGEX REPLACE "${CMAKE_SOURCE_DIR}" "" dstitem "pycmake/src/${item}")
+            string(REGEX REPLACE "${CMAKE_BINARY_DIR}" "" dstitem "${dstitem}")
+            string(REGEX REPLACE "//" "/" dstitem "${dstitem}")
             configure_file(${item} ${CMAKE_CURRENT_BINARY_DIR}/${dstitem} COPYONLY)
-            list(APPEND _src "'./${dstitem}'")
+            list(APPEND _src "'${dstitem}'")
+            unset(dstitem)
         endforeach ()
 
         foreach (item ${opt})
@@ -701,7 +710,7 @@ function(add_setup_py target template)
     # Make a best-effort guess finding header files, trying all common
     # extensions
     file(APPEND ${CMAKE_CURRENT_BINARY_DIR}/MANIFEST.in
-                "recursive-include include *.h *.hh *.H *.hpp *.hxx")
+                "recursive-include pycmake/include *.h *.hh *.H *.hpp *.hxx")
 
     set(setup.py setup.py)
     if (PP_OUTPUT)
