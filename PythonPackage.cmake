@@ -551,7 +551,7 @@ function(add_setup_py target template)
     set(nary)
     cmake_parse_arguments(PP "${options}" "${unary}" "${nary}" "${ARGN}")
 
-    string(TOUPPER ${CMAKE_BUILD_TYPE} buildtype)
+    string(TOUPPER "${CMAKE_BUILD_TYPE}" buildtype)
 
     get_target_property(PYCMAKE_PACKAGE_NAME ${target} PYCMAKE_PACKAGE_NAME)
     get_target_property(PYCMAKE_VERSION ${target} PYCMAKE_PACKAGE_VERSION)
@@ -563,10 +563,15 @@ function(add_setup_py target template)
     get_directory_property(dir_opt COMPILE_OPTIONS)
     string(REGEX REPLACE " " ";" dir_opt "${dir_opt}")
 
-    set(cflags   "${CMAKE_C_FLAGS} ${CMAKE_C_FLAGS_${buildtype}}")
-    set(cxxflags "${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_${buildtype}}")
-    string(REGEX REPLACE " " ";" cflags ${cflags})
-    string(REGEX REPLACE " " ";" cxxflags ${cxxflags})
+    set(cflags   ${CMAKE_C_FLAGS})
+    set(cxxflags ${CMAKE_CXX_FLAGS})
+    if (buildtype)
+        set(cflags "${cflags}   ${CMAKE_C_FLAGS_${buildtype}}")
+        set(cflags "${cxxflags} ${CMAKE_CXX_FLAGS_${buildtype}}")
+    endif ()
+
+    string(REGEX REPLACE " " ";" cflags "${cflags}")
+    string(REGEX REPLACE " " ";" cxxflags "${cxxflags}")
     set(flags ${cflags} ${cxxflags})
 
     foreach (item ${pkg})
