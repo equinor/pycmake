@@ -532,9 +532,14 @@ function(add_python_package pkg NAME)
         if (NOT PP_TARGET_COPYONLY)
             # proper python extensions - they're assumed to be created in the
             # same dir as add_python_package is invoked and directly modify the
-            # target by changing output dir and setting suffix
+            # target by changing output dir and setting suffix.
+            #
+            # The python package does not distinguish between debug/release
+            # builds, but this usually only matters for Windows.
             set_target_properties(${tgt} PROPERTIES
-                                  LIBRARY_OUTPUT_DIRECTORY ${dstpath}
+                                  LIBRARY_OUTPUT_DIRECTORY         ${dstpath}
+                                  LIBRARY_OUTPUT_DIRECTORY_DEBUG   ${dstpath}
+                                  LIBRARY_OUTPUT_DIRECTORY_RELEASE ${dstpath}
                                   PREFIX ""
                                   SUFFIX "${SUFFIX}"
             )
