@@ -33,6 +33,7 @@
 #
 # * add_python_package(<target> <name>
 #                      [APPEND] [VERSION__INIT__]
+#                      [TARGET_COPYONLY] [NO_LINK_FLAGS]
 #                      [SUBDIR <dir>] [PATH <path>]
 #                      [VERSION <version>]
 #                      [TARGETS <tgt>...] [SOURCES <src>...]
@@ -59,6 +60,17 @@
 #   If neither PROJECT_VERSION or VERSION is used, the string "0.0.0" is used
 #   as a fallback. The same version number will be used for the add_setup_py
 #   pip package.
+#
+#   Without TARGET_COPYONLY, add_python_package will by default assume that the
+#   targets are python extension added in the same CMakeLists.txt file that
+#   invokes the function, and will modify some output properties of the targets
+#   accordingly. Some python modules are meant to be used with raw dlopen and
+#   only copied as-is into the python directory, and this option is intended
+#   for such packages. TARGET_COPYONLY implies NO_LINK_FLAGS
+#
+#   NO_LINK_FLAGS stops add_python_package from adding linker flags such as
+#   export-dynamic, which is often expected by python extensions to keep them
+#   independent of a very specific interpreter+library version.
 #
 #   DEPEND_DIRS is needed by add_setup_py if sources for the target is set with
 #   relative paths. These paths can be set later in order to be less intrusive
@@ -356,10 +368,14 @@ function(python_library target)
 endfunction()
 
 function(add_python_package pkg NAME)
-    set(options APPEND VERSION__INIT__)
-    set(unary PATH SUBDIR VERSION NO_LINK_FLAGS)
+    set(options APPEND VERSION__INIT__ TARGET_COPYONLY NO_LINK_FLAGS)
+    set(unary PATH SUBDIR VERSION)
     set(nary  TARGETS SOURCES DEPEND_DIRS)
     cmake_parse_arguments(PP "${options}" "${unary}" "${nary}" "${ARGN}")
+
+    if (TARGET_COPYONLY)
+        set(PP_NO_LINK_FLAGS TRUE)
+    endif ()
 
     pycmake_init()
     set(installpath ${CMAKE_INSTALL_PREFIX}/${PYTHON_INSTALL_PREFIX})
@@ -513,36 +529,75 @@ function(add_python_package pkg NAME)
             set_property(TARGET ${tgt} APPEND_STRING PROPERTY LINK_FLAGS ${LINK_FLAGS})
         endif()
 
-        # copy all targets into the package directory
-        get_target_property(_lib ${tgt} OUTPUT_NAME)
-        if (NOT _lib)
-            # if OUTPUT_NAME is not set, library base name is the same as the
-            # target name
-            set(_lib ${tgt})
-        endif ()
+        if (NOT PP_TARGET_COPYONLY)
+            # proper python extensions - they're assumed to be created in the
+            # same dir as add_python_package is invoked and directly modify the
+            # target by changing output dir and setting suffix
+            set_target_properties(${tgt} PROPERTIES
+                                  LIBRARY_OUTPUT_DIRECTORY ${dstpath}
+                                  PREFIX ""
+                                  SUFFIX "${SUFFIX}"
+            )
+        else()
+            # ecl and other libraries relies on ctypes and dlopen. We want to
+            # copy a proper install'd target when we invoke make install, in
+            # particular because cmake then handles rpath stripping properly,
+            # so we do a dummy install into our build directory and then
+            # immediately install that. This does not modify the target in any
+            # way and does not require it to be in the same directory.
+            #
+            # for the build tree, the library is simply copied
 
-        string(REGEX REPLACE "^lib" "" _lib ${_lib}${SUFFIX})
-        file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${dstpath})
-        add_custom_command(OUTPUT ${dstpath}/${_lib}
-            COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${tgt}> ${dstpath}/${_lib}
-            DEPENDS ${tgt}
-        )
-        add_custom_target(pycmake-ext-${pkg}-${_lib} ALL DEPENDS ${dstpath}/${_lib})
-        add_dependencies(${pkg} pycmake-ext-${pkg}-${_lib})
-        unset(_lib)
+            # copy all targets into the package directory
+            get_target_property(_lib ${tgt} OUTPUT_NAME)
+            if (NOT _lib)
+                # if OUTPUT_NAME is not set, library base name is the same as the
+                # target name
+                set(_lib ${tgt})
+            endif ()
+
+            string(REGEX REPLACE "^lib" "" _lib ${_lib}${SUFFIX})
+            file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${dstpath})
+
+            add_custom_command(OUTPUT ${dstpath}/${_lib}
+                COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${tgt}> ${dstpath}/${_lib}
+                DEPENDS ${tgt}
+            )
+
+            install(TARGETS ${tgt}
+                    DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/pycmake
+            )
+            install(FILES ${CMAKE_CURRENT_BINARY_DIR}/pycmake/$<TARGET_FILE_NAME:${tgt}>
+                    DESTINATION ${installpath}/${dstpath}
+                    RENAME ${_lib}
+            )
+
+            add_custom_target(pycmake-ext-${pkg}-${_lib} ALL DEPENDS ${dstpath}/${_lib})
+            add_dependencies(${pkg} pycmake-ext-${pkg}-${_lib})
+            unset(_lib)
+        endif()
 
         # traverse all dependencies and get their include dirs, link flags etc.
         pycmake_include_target_deps(${pkg} ${tgt} "${PP_DEPEND_DIRS}")
 
     endforeach ()
 
+    if (NOT PP_TARGET_COPYONLY AND PP_TARGETS)
+        install(TARGETS ${PP_TARGETS}
+                LIBRARY DESTINATION ${installpath}/${dstpath}
+        )
+    endif ()
+
+    if (PP_SOURCES)
+        install(FILES ${PP_SOURCES}
+                DESTINATION ${installpath}/${dstpath}
+        )
+    endif ()
+
     if (NOT PP_SOURCES AND NOT PP_TARGETS AND NOT PP_APPEND)
         message(SEND_ERROR
             "add_python_package called without .py files or C/C++ targets.")
     endif()
-
-    install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${dstpath}
-            DESTINATION ${installpath})
 endfunction()
 
 function(add_setup_py target template)
