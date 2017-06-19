@@ -540,6 +540,9 @@ function(add_python_package pkg NAME)
                                   LIBRARY_OUTPUT_DIRECTORY         ${dstpath}
                                   LIBRARY_OUTPUT_DIRECTORY_DEBUG   ${dstpath}
                                   LIBRARY_OUTPUT_DIRECTORY_RELEASE ${dstpath}
+                                  RUNTIME_OUTPUT_DIRECTORY         ${dstpath}
+                                  RUNTIME_OUTPUT_DIRECTORY_DEBUG   ${dstpath}
+                                  RUNTIME_OUTPUT_DIRECTORY_RELEASE ${dstpath}
                                   PREFIX ""
                                   SUFFIX "${SUFFIX}"
             )
