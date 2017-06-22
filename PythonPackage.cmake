@@ -529,24 +529,7 @@ function(add_python_package pkg NAME)
             set_property(TARGET ${tgt} APPEND_STRING PROPERTY LINK_FLAGS ${LINK_FLAGS})
         endif()
 
-        if (NOT PP_TARGET_COPYONLY)
-            # proper python extensions - they're assumed to be created in the
-            # same dir as add_python_package is invoked and directly modify the
-            # target by changing output dir and setting suffix.
-            #
-            # The python package does not distinguish between debug/release
-            # builds, but this usually only matters for Windows.
-            set_target_properties(${tgt} PROPERTIES
-                                  LIBRARY_OUTPUT_DIRECTORY         ${dstpath}
-                                  LIBRARY_OUTPUT_DIRECTORY_DEBUG   ${dstpath}
-                                  LIBRARY_OUTPUT_DIRECTORY_RELEASE ${dstpath}
-                                  RUNTIME_OUTPUT_DIRECTORY         ${dstpath}
-                                  RUNTIME_OUTPUT_DIRECTORY_DEBUG   ${dstpath}
-                                  RUNTIME_OUTPUT_DIRECTORY_RELEASE ${dstpath}
-                                  PREFIX ""
-                                  SUFFIX "${SUFFIX}"
-            )
-        else()
+        if (PP_TARGET_COPYONLY)
             # ecl and other libraries relies on ctypes and dlopen. We want to
             # copy a proper install'd target when we invoke make install, in
             # particular because cmake then handles rpath stripping properly,
@@ -594,6 +577,34 @@ function(add_python_package pkg NAME)
         install(TARGETS ${PP_TARGETS}
                 LIBRARY DESTINATION ${installpath}/${dstpath}
         )
+
+        # proper python extensions - they're assumed to be created in the
+        # same dir as add_python_package is invoked and directly modify the
+        # target by changing output dir and setting suffix.
+        #
+        # The python package does not distinguish between debug/release
+        # builds, but this usually only matters for Windows.
+        #
+        # LIBRARY_OUTPUT_DIRECTORY only works with cmake3.0 - to support cmake
+        # 2.8.12, also copy the file.
+        set_target_properties(${PP_TARGETS}  PROPERTIES
+            LIBRARY_OUTPUT_DIRECTORY         ${dstpath}
+            LIBRARY_OUTPUT_DIRECTORY_DEBUG   ${dstpath}
+            LIBRARY_OUTPUT_DIRECTORY_RELEASE ${dstpath}
+            RUNTIME_OUTPUT_DIRECTORY         ${dstpath}
+            RUNTIME_OUTPUT_DIRECTORY_DEBUG   ${dstpath}
+            RUNTIME_OUTPUT_DIRECTORY_RELEASE ${dstpath}
+            PREFIX ""
+            SUFFIX "${SUFFIX}"
+        )
+
+        if (${CMAKE_VERSION} VERSION_LESS 3.0)
+            foreach(tgt ${PP_TARGETS})
+                add_custom_command(TARGET ${tgt}
+                    COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${tgt}> ${dstpath}/
+                )
+            endforeach()
+        endif ()
     endif ()
 
     if (PP_SOURCES)
