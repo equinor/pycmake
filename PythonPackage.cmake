@@ -555,12 +555,11 @@ function(add_python_package pkg NAME)
                 DEPENDS ${tgt}
             )
 
-            install(TARGETS ${tgt}
-                    DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/pycmake
-            )
-            install(FILES ${CMAKE_CURRENT_BINARY_DIR}/pycmake/$<TARGET_FILE_NAME:${tgt}>
+            # Install the shared library as-is. Note that cmake typically
+            # strips build-time rpath on install, but this object is in fact
+            # never installed, so it possibly keeps rpaths to the build directory
+            install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${dstpath}/${_lib}
                     DESTINATION ${installpath}/${dstpath}
-                    RENAME ${_lib}
             )
 
             add_custom_target(pycmake-ext-${pkg}-${_lib} ALL DEPENDS ${dstpath}/${_lib})
