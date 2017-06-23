@@ -424,7 +424,6 @@ function(add_python_package pkg NAME)
     # append subdir if requested
     if (PP_SUBDIR)
         set(dstpath ${dstpath}/${PP_SUBDIR})
-        set(installpath ${installpath}/${PP_SUBDIR})
 
         # save modules added with SUBDIR - setup.py will want them in packages
         get_target_property(_packages ${pkg} PYCMAKE_PACKAGES)
