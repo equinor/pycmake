@@ -468,7 +468,7 @@ function(add_python_package pkg NAME)
             DEPENDS ${absfile}
         )
 
-        list(APPEND _files ${dstpath}/${fname})
+        list(APPEND _files ${CMAKE_CURRENT_BINARY_DIR}/${dstpath}/${fname})
 
         if ("${fname}" STREQUAL "__init__.py" AND PP_VERSION__INIT__)
             message(STATUS "Writing __version__ ${pkgver} to package ${pkg}.")
@@ -504,7 +504,6 @@ function(add_python_package pkg NAME)
     add_custom_target(${_id} ALL SOURCES ${_files} DEPENDS ${_files})
     add_dependencies(${pkg} ${_id})
     unset(_id)
-    unset(_files)
     unset(_subdir)
 
     # targets are compiled as regular C/C++ libraries (via add_library), before
@@ -605,10 +604,10 @@ function(add_python_package pkg NAME)
         endif ()
     endif ()
 
-    if (PP_SOURCES)
-        install(FILES ${PP_SOURCES}
-                DESTINATION ${installpath}/${dstpath}
-        )
+    if (_files)
+        message(STATUS "FILES: ${_files}")
+        install(FILES ${_files} DESTINATION ${installpath}/${dstpath})
+        unset(_files)
     endif ()
 
     if (NOT PP_SOURCES AND NOT PP_TARGETS AND NOT PP_APPEND)
