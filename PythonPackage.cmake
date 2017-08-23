@@ -605,7 +605,6 @@ function(add_python_package pkg NAME)
     endif ()
 
     if (_files)
-        message(STATUS "FILES: ${_files}")
         install(FILES ${_files} DESTINATION ${installpath}/${dstpath})
         unset(_files)
     endif ()
