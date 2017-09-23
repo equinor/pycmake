@@ -802,6 +802,10 @@ function(add_python_test TESTNAME PYTHON_TEST_FILE)
     add_test(NAME ${TESTNAME}
             COMMAND ${PYTHON_EXECUTABLE} -m unittest discover -vs ${dir} -p ${name}
             )
+
+    if (ARGC EQUAL 3)
+        set_tests_properties(${TESTNAME} PROPERTIES ENVIRONMENT "${ARGV2}")
+    endif()    
 endfunction()
 
 function(add_python_example pkg TESTNAME PYTHON_TEST_FILE)
